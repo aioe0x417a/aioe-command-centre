@@ -53,10 +53,19 @@ function formatDate(iso: string | null) {
 }
 
 export default function TasksPage() {
-  const { data: taskData, loading, refresh } = useApi<{ list: string; tasks: ClickUpTask[] }>(
+  // Try the new aioe-ops endpoint first, fall back to today if not available
+  const { data: aioeData, error: aioeError, loading: aioeLoading, refresh: aioeRefresh } = useApi<{ list: string; tasks: ClickUpTask[] }>(
     "/api/v1/tasks/aioe-ops?include_closed=true",
     { refreshInterval: 30000 }
   );
+  const { data: fallbackData, loading: fallbackLoading, refresh: fallbackRefresh } = useApi<{ list: string; tasks: ClickUpTask[] }>(
+    "/api/v1/tasks/today",
+    { refreshInterval: 30000, enabled: !!aioeError }
+  );
+
+  const taskData = aioeError ? fallbackData : aioeData;
+  const loading = aioeError ? fallbackLoading : aioeLoading;
+  const refresh = aioeError ? fallbackRefresh : aioeRefresh;
   const [showAddForm, setShowAddForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [addingTask, setAddingTask] = useState(false);
