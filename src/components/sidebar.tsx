@@ -37,7 +37,7 @@ const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
   { icon: ScrollText, label: "Activity", href: "/activity" },
   { icon: MessageSquare, label: "Chat", href: "/chat" },
-  { icon: ListTodo, label: "Tasks", href: "/tasks", badge: 4, badgeColor: "bg-cyan" },
+  { icon: ListTodo, label: "AI Tasks", href: "/tasks", badge: 4, badgeColor: "bg-cyan" },
   { icon: StickyNote, label: "Notes", href: "/notes", badge: 2, badgeColor: "bg-warning" },
   { icon: FileText, label: "Documents", href: "/documents" },
   { icon: Server, label: "Services", href: "/services", badge: 1, badgeColor: "bg-danger" },
