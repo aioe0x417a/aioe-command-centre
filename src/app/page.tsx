@@ -22,24 +22,28 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-/* ── Heartbeat data (last 24h, every 30 min = 48 ticks) ── */
-const heartbeats = Array.from({ length: 48 }, (_, i) => {
-  const hour = Math.floor(i / 2);
-  const min = i % 2 === 0 ? "00" : "30";
-  const rand = Math.random();
-  return {
-    time: `${hour.toString().padStart(2, "0")}:${min}`,
-    status: rand > 0.06 ? ("ok" as const) : rand > 0.03 ? ("partial" as const) : ("missed" as const),
-    action:
-      rand > 0.7
-        ? "Synced data"
-        : rand > 0.4
-          ? "Checked notes"
-          : rand > 0.2
-            ? "Ran automation"
-            : "Health check",
-  };
-});
+/* ── Heartbeat data — seeded deterministically to avoid hydration mismatch ── */
+function generateHeartbeats() {
+  return Array.from({ length: 48 }, (_, i) => {
+    const hour = Math.floor(i / 2);
+    const min = i % 2 === 0 ? "00" : "30";
+    // Deterministic "random" based on index — same on server and client
+    const seed = ((i * 7 + 13) * 31) % 100;
+    return {
+      time: `${hour.toString().padStart(2, "0")}:${min}`,
+      status: seed > 6 ? ("ok" as const) : seed > 3 ? ("partial" as const) : ("missed" as const),
+      action:
+        seed > 70
+          ? "Synced data"
+          : seed > 40
+            ? "Checked notes"
+            : seed > 20
+              ? "Ran automation"
+              : "Health check",
+    };
+  });
+}
+const heartbeats = generateHeartbeats();
 
 /* ── Scheduled deliverables ── */
 const deliverables = [
