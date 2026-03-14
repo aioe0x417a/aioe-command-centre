@@ -5,7 +5,7 @@ import { persist } from "zustand/middleware";
 
 interface AuthStore {
   authenticated: boolean;
-  login: (password: string) => Promise<boolean>;
+  login: (password: string, totp?: string) => Promise<boolean>;
   logout: () => void;
 }
 
@@ -13,22 +13,25 @@ export const useAuth = create<AuthStore>()(
   persist(
     (set) => ({
       authenticated: false,
-      login: async (password: string) => {
-        try {
-          const res = await fetch("/api/auth", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ password }),
-          });
-          if (res.ok) {
-            set({ authenticated: true });
-            return true;
-          }
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "Authentication failed");
-        } catch (e) {
-          throw e;
+      login: async (password: string, totp?: string) => {
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password, totp }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.ok) {
+          set({ authenticated: true });
+          return true;
         }
+
+        // Server says password is correct but needs TOTP
+        if (data.needsTotp) {
+          throw new Error("TOTP_REQUIRED");
+        }
+
+        throw new Error(data.error || "Authentication failed");
       },
       logout: () => set({ authenticated: false }),
     }),

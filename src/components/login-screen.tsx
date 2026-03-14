@@ -3,24 +3,48 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "@/lib/use-auth";
-import { Zap, Lock, Eye, EyeOff } from "lucide-react";
+import { Zap, Lock, Eye, EyeOff, ShieldCheck } from "lucide-react";
 
 export function LoginScreen() {
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [needsTotp, setNeedsTotp] = useState(false);
   const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
     try {
-      await login(password);
+      // If we need TOTP, send both password and code
+      if (needsTotp) {
+        if (!totpCode) {
+          setError("Enter the 6-digit code from your authenticator");
+          setLoading(false);
+          return;
+        }
+        await login(password, totpCode);
+      } else {
+        try {
+          await login(password);
+        } catch (e) {
+          // Check if it's a TOTP required response
+          if (e instanceof Error && e.message === "TOTP_REQUIRED") {
+            setNeedsTotp(true);
+            setLoading(false);
+            return;
+          }
+          throw e;
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Authentication failed");
-      setPassword("");
+      if (needsTotp) setTotpCode("");
+      else setPassword("");
     }
     setLoading(false);
   };
@@ -47,28 +71,54 @@ export function LoginScreen() {
         {/* Login form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="rounded-xl border border-border bg-surface p-6 space-y-4">
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Lock className="h-4 w-4" />
-              <span>Enter password to continue</span>
-            </div>
-
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                placeholder="Password"
-                autoFocus
-                className="w-full rounded-lg border border-border bg-background px-4 py-3 pr-10 text-sm outline-none transition-colors focus:border-cyan/30 placeholder:text-muted"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
+            {!needsTotp ? (
+              <>
+                <div className="flex items-center gap-2 text-sm text-muted">
+                  <Lock className="h-4 w-4" />
+                  <span>Enter password to continue</span>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => { setPassword(e.target.value); setError(""); }}
+                    placeholder="Password"
+                    autoFocus
+                    className="w-full rounded-lg border border-border bg-background px-4 py-3 pr-10 text-sm outline-none transition-colors focus:border-cyan/30 placeholder:text-muted"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-sm text-cyan">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span>Two-factor authentication</span>
+                </div>
+                <p className="text-xs text-muted">
+                  Enter the 6-digit code from Google Authenticator
+                </p>
+                <input
+                  type="text"
+                  value={totpCode}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "").slice(0, 6);
+                    setTotpCode(val);
+                    setError("");
+                  }}
+                  placeholder="000000"
+                  autoFocus
+                  maxLength={6}
+                  className="w-full rounded-lg border border-border bg-background px-4 py-3 text-center font-mono text-2xl tracking-[0.5em] outline-none transition-colors focus:border-cyan/30 placeholder:text-muted placeholder:tracking-[0.5em]"
+                />
+              </>
+            )}
 
             {error && (
               <motion.p
@@ -82,11 +132,21 @@ export function LoginScreen() {
 
             <button
               type="submit"
-              disabled={!password || loading}
+              disabled={needsTotp ? totpCode.length !== 6 || loading : !password || loading}
               className="w-full rounded-lg bg-cyan py-3 text-sm font-semibold text-background transition-colors hover:bg-cyan/80 disabled:opacity-50"
             >
-              {loading ? "Authenticating..." : "Enter Command Centre"}
+              {loading ? "Authenticating..." : needsTotp ? "Verify Code" : "Continue"}
             </button>
+
+            {needsTotp && (
+              <button
+                type="button"
+                onClick={() => { setNeedsTotp(false); setTotpCode(""); setError(""); }}
+                className="w-full text-xs text-muted hover:text-foreground"
+              >
+                Back to password
+              </button>
+            )}
           </div>
         </form>
 
