@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useThemeStore, themes } from "@/lib/use-theme";
+import { toast } from "@/lib/use-toast";
 import {
   Settings,
   Key,
@@ -50,9 +52,11 @@ export default function SettingsPage() {
   const [activeSection, setActiveSection] = useState<Section>("general");
   const [saved, setSaved] = useState(false);
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const { themeId, setTheme } = useThemeStore();
 
   const handleSave = () => {
     setSaved(true);
+    toast("Settings saved successfully", "success");
     setTimeout(() => setSaved(false), 2000);
   };
 
@@ -330,21 +334,24 @@ export default function SettingsPage() {
               <div className="rounded-xl border border-border bg-surface p-6">
                 <h3 className="text-sm font-semibold">Theme</h3>
                 <div className="mt-4 grid grid-cols-3 gap-3">
-                  {[
-                    { label: "Cyberpunk Dark", active: true, preview: "bg-[#06060e]" },
-                    { label: "Midnight Blue", active: false, preview: "bg-[#0a1628]" },
-                    { label: "Pure Dark", active: false, preview: "bg-[#000000]" },
-                  ].map((theme) => (
+                  {themes.map((t) => (
                     <button
-                      key={theme.label}
+                      key={t.id}
+                      onClick={() => {
+                        setTheme(t.id);
+                        toast(`Theme changed to ${t.label}`, "success");
+                      }}
                       className={cn(
                         "rounded-lg border p-3 text-left transition-all",
-                        theme.active ? "border-cyan/30" : "border-border hover:border-cyan/20"
+                        themeId === t.id ? "border-cyan/30" : "border-border hover:border-cyan/20"
                       )}
                     >
-                      <div className={cn("mb-2 h-16 rounded-md", theme.preview)} />
-                      <p className="text-sm font-medium">{theme.label}</p>
-                      {theme.active && (
+                      <div
+                        className="mb-2 h-16 rounded-md"
+                        style={{ backgroundColor: t.colors.background }}
+                      />
+                      <p className="text-sm font-medium">{t.label}</p>
+                      {themeId === t.id && (
                         <span className="mt-1 inline-block rounded-full bg-cyan/10 px-2 py-0.5 text-[10px] text-cyan">
                           Active
                         </span>

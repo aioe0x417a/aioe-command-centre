@@ -74,8 +74,10 @@ export default function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = () => {
-    if (!input.trim()) return;
+  const [isStreaming, setIsStreaming] = useState(false);
+
+  const handleSend = async () => {
+    if (!input.trim() || isStreaming) return;
     const userMsg: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -83,20 +85,37 @@ export default function ChatPage() {
       timestamp: new Date(),
     };
     setMessages((prev) => [...prev, userMsg]);
+    const prompt = input;
     setInput("");
+    setIsStreaming(true);
 
-    // Simulate assistant response
-    setTimeout(() => {
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: prompt, model: selectedModel }),
+      });
+      const data = await res.json();
       const assistantMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content:
-          "I'll look into that for you. This is a demo response — in the full version, this connects to the AIOE backend API at `api.aioe.space` for real-time processing.",
+        content: data.response || data.error || "No response received.",
         timestamp: new Date(),
-        model: selectedModel,
+        model: data.model || selectedModel,
       };
       setMessages((prev) => [...prev, assistantMsg]);
-    }, 1500);
+    } catch {
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: "assistant",
+        content: "Failed to reach AIOE backend. Make sure the API is running and AIOE_API_KEY is set in .env.local.",
+        timestamp: new Date(),
+        model: "error",
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsStreaming(false);
+    }
   };
 
   const handleCopy = (id: string, content: string) => {
@@ -273,15 +292,19 @@ export default function ChatPage() {
           />
           <button
             onClick={handleSend}
-            disabled={!input.trim()}
+            disabled={!input.trim() || isStreaming}
             className={cn(
               "rounded-lg p-2 transition-all",
-              input.trim()
+              input.trim() && !isStreaming
                 ? "bg-cyan text-background hover:bg-cyan/80"
                 : "text-muted"
             )}
           >
-            <Send className="h-4 w-4" />
+            {isStreaming ? (
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-muted border-t-cyan" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </button>
         </div>
         <p className="mt-2 text-center text-[10px] text-muted">

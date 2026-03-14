@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
+import { toast } from "@/lib/use-toast";
+import { ListSkeleton } from "@/components/skeleton";
 import {
   Server,
   RefreshCw,
@@ -173,9 +176,53 @@ const statusConfig = {
 export default function ServicesPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const onlineCount = services.filter((s) => s.status === "online").length;
-  const degradedCount = services.filter((s) => s.status === "degraded").length;
-  const offlineCount = services.filter((s) => s.status === "offline").length;
+  // Fetch real service status from API (refresh every 15s)
+  const { data: liveServices, loading, refresh } = useApi<{ name: string; slug: string; running: boolean; pids: number[] }[]>(
+    "/api/v1/services",
+    { refreshInterval: 15000 }
+  );
+
+  // Merge live data into mock services for display
+  const mergedServices = services.map((s) => {
+    const live = liveServices?.find((ls) => s.name.toLowerCase().includes(ls.slug?.toLowerCase?.() || "___"));
+    if (live) {
+      return {
+        ...s,
+        status: live.running ? ("online" as const) : ("offline" as const),
+      };
+    }
+    return s;
+  });
+
+  const onlineCount = mergedServices.filter((s) => s.status === "online").length;
+  const degradedCount = mergedServices.filter((s) => s.status === "degraded").length;
+  const offlineCount = mergedServices.filter((s) => s.status === "offline").length;
+
+  const handleServiceAction = async (slug: string, action: "start" | "stop") => {
+    try {
+      const res = await fetch(`/api/proxy?path=${encodeURIComponent(`/api/v1/services/${slug}/${action}`)}`, { method: "POST" });
+      if (res.ok) {
+        toast(`Service ${action}ed successfully`, "success");
+        refresh();
+      } else {
+        toast(`Failed to ${action} service`, "error");
+      }
+    } catch {
+      toast("API unreachable", "error");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-xl font-bold">Services</h1>
+          <p className="text-sm text-muted">Monitor and manage all AIOE services</p>
+        </div>
+        <ListSkeleton rows={8} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -184,7 +231,10 @@ export default function ServicesPage() {
           <h1 className="text-xl font-bold">Services</h1>
           <p className="text-sm text-muted">Monitor and manage all AIOE services</p>
         </div>
-        <button className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm transition-colors hover:border-cyan/30 hover:bg-surface-hover">
+        <button
+          onClick={() => { refresh(); toast("Refreshing services...", "info"); }}
+          className="flex items-center gap-2 rounded-lg border border-border bg-surface px-4 py-2 text-sm transition-colors hover:border-cyan/30 hover:bg-surface-hover"
+        >
           <RefreshCw className="h-3.5 w-3.5" />
           Refresh All
         </button>

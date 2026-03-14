@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
 import { motion } from "framer-motion";
 import {
   CheckCircle,
@@ -79,6 +80,31 @@ const typeConfig = {
 };
 
 export function ActivityFeed() {
+  // Fetch real bot logs (refresh every 30s)
+  const { data: logData } = useApi<{ source: string; lines: string[] }>(
+    "/api/v1/system/logs?source=bot&lines=10",
+    { refreshInterval: 30000 }
+  );
+
+  // Convert real log lines to activity items if available
+  const liveActivity: ActivityItem[] | null = logData?.lines
+    ?.filter((line) => line.trim().length > 0)
+    .map((line, i) => {
+      const timeMatch = line.match(/(\d{2}:\d{2}:\d{2})/);
+      const isError = /error|fail|exception/i.test(line);
+      const isWarning = /warn|⚠|retry|timeout/i.test(line);
+      const isAutomation = /workflow|pipeline|sync|schedule|cron/i.test(line);
+      return {
+        id: `live-${i}`,
+        type: isError ? "error" as const : isWarning ? "warning" as const : isAutomation ? "automation" as const : "info" as const,
+        message: line.replace(/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}[,.\d]*\s*[-]*\s*/, "").slice(0, 120),
+        timestamp: timeMatch?.[1] || "",
+        source: "Bot Log",
+      };
+    }) || null;
+
+  const displayActivity = liveActivity && liveActivity.length > 0 ? liveActivity : mockActivity;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -91,7 +117,7 @@ export function ActivityFeed() {
         <span className="text-xs text-muted">Live</span>
       </div>
       <div className="divide-y divide-border">
-        {mockActivity.map((item, i) => {
+        {displayActivity.map((item, i) => {
           const config = typeConfig[item.type];
           const Icon = config.icon;
           return (

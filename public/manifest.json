@@ -1,0 +1,16 @@
+{
+  "name": "AIOE Command Centre",
+  "short_name": "AIOE",
+  "description": "AI Operations Engine — Command Centre Dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#06060e",
+  "theme_color": "#06060e",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

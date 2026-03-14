@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
 import {
   Activity,
   Cpu,
@@ -98,7 +99,63 @@ const accentMap = {
   warning: "text-warning bg-warning/10",
 };
 
+interface SystemInfoData {
+  cpu_percent: number;
+  ram_used_gb: number;
+  ram_total_gb: number;
+  ram_percent: number;
+  disk_used_gb: number;
+  disk_total_gb: number;
+  disk_percent: number;
+  uptime_seconds: number;
+}
+
 export default function MonitoringPage() {
+  // Fetch real system info (refresh every 10s)
+  const { data: sysInfo } = useApi<SystemInfoData>("/api/v1/system/info", { refreshInterval: 10000 });
+
+  // Override metrics with real data when available
+  const liveMetrics: MetricCard[] = sysInfo
+    ? [
+        {
+          label: "CPU Usage",
+          value: String(Math.round(sysInfo.cpu_percent)),
+          unit: "%",
+          change: sysInfo.cpu_percent < 50 ? "Normal" : "High",
+          positive: sysInfo.cpu_percent < 50,
+          icon: Cpu,
+          accent: sysInfo.cpu_percent < 70 ? "cyan" : "warning",
+        },
+        {
+          label: "Memory",
+          value: String(sysInfo.ram_used_gb),
+          unit: `/ ${sysInfo.ram_total_gb} GB`,
+          change: `${Math.round(sysInfo.ram_percent)}%`,
+          positive: sysInfo.ram_percent < 80,
+          icon: MemoryStick,
+          accent: sysInfo.ram_percent < 80 ? "purple" : "warning",
+        },
+        {
+          label: "Disk",
+          value: String(Math.round(sysInfo.disk_total_gb - sysInfo.disk_used_gb)),
+          unit: "GB free",
+          change: `${Math.round(sysInfo.disk_percent)}% used`,
+          positive: sysInfo.disk_percent < 80,
+          icon: HardDrive,
+          accent: sysInfo.disk_percent < 80 ? "success" : "warning",
+        },
+        {
+          label: "Uptime",
+          value: String(Math.round(sysInfo.uptime_seconds / 3600)),
+          unit: "hours",
+          change: "System",
+          positive: true,
+          icon: Thermometer,
+          accent: "success",
+        },
+      ]
+    : systemMetrics;
+
   return (
     <div className="space-y-6">
       <div>
@@ -108,7 +165,7 @@ export default function MonitoringPage() {
 
       {/* System metrics */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {systemMetrics.map((metric, i) => {
+        {liveMetrics.map((metric, i) => {
           const Icon = metric.icon;
           return (
             <motion.div
