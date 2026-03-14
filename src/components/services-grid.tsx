@@ -1,33 +1,23 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
 import { motion } from "framer-motion";
 
-interface Service {
+interface ApiService {
   name: string;
-  status: "online" | "degraded" | "offline";
-  uptime: string;
-  latency?: string;
+  slug: string;
+  running: boolean;
+  pids: number[];
 }
 
-const services: Service[] = [
-  { name: "AIOE API", status: "online", uptime: "99.9%", latency: "45ms" },
-  { name: "Telegram Bot", status: "online", uptime: "99.8%", latency: "120ms" },
-  { name: "n8n Workflows", status: "online", uptime: "99.5%", latency: "200ms" },
-  { name: "Cloudflare Tunnel", status: "degraded", uptime: "98.2%", latency: "350ms" },
-  { name: "ClickUp Sync", status: "online", uptime: "99.7%", latency: "180ms" },
-  { name: "Gmail Sync", status: "online", uptime: "99.9%", latency: "90ms" },
-  { name: "Invoice Pipeline", status: "online", uptime: "99.6%", latency: "250ms" },
-  { name: "Trading Bots", status: "offline", uptime: "—", latency: "—" },
-];
-
-const statusConfig = {
-  online: { dot: "bg-success", label: "Online", text: "text-success" },
-  degraded: { dot: "bg-warning", label: "Degraded", text: "text-warning" },
-  offline: { dot: "bg-danger", label: "Offline", text: "text-danger" },
-};
-
 export function ServicesGrid() {
+  const { data: services } = useApi<ApiService[]>("/api/v1/services", { refreshInterval: 15000 });
+
+  const displayServices = services || [];
+  const onlineCount = displayServices.filter((s) => s.running).length;
+  const offlineCount = displayServices.filter((s) => !s.running).length;
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -39,19 +29,22 @@ export function ServicesGrid() {
         <h3 className="text-sm font-semibold tracking-wide">Services</h3>
         <div className="flex items-center gap-1.5 text-xs text-muted">
           <div className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
-          <span>6 online</span>
-          <span className="text-border">·</span>
-          <span>1 degraded</span>
-          <span className="text-border">·</span>
-          <span>1 offline</span>
+          <span>{onlineCount} online</span>
+          {offlineCount > 0 && (
+            <>
+              <span className="text-border">·</span>
+              <span>{offlineCount} offline</span>
+            </>
+          )}
         </div>
       </div>
       <div className="divide-y divide-border">
-        {services.map((service, i) => {
-          const config = statusConfig[service.status];
-          return (
+        {displayServices.length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-muted">Loading services...</div>
+        ) : (
+          displayServices.map((service, i) => (
             <motion.div
-              key={service.name}
+              key={service.slug}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.3, delay: i * 0.04 }}
@@ -61,22 +54,22 @@ export function ServicesGrid() {
                 <div
                   className={cn(
                     "h-2 w-2 rounded-full",
-                    config.dot,
-                    service.status === "online" && "animate-pulse"
+                    service.running ? "bg-success animate-pulse" : "bg-danger"
                   )}
                 />
                 <span className="text-sm">{service.name}</span>
               </div>
-              <div className="flex items-center gap-6 text-xs text-muted">
-                <span className={cn("font-medium", config.text)}>
-                  {config.label}
+              <div className="flex items-center gap-4 text-xs text-muted">
+                <span className={cn("font-medium", service.running ? "text-success" : "text-danger")}>
+                  {service.running ? "Online" : "Offline"}
                 </span>
-                <span className="w-12 text-right">{service.uptime}</span>
-                <span className="w-14 text-right font-mono">{service.latency}</span>
+                {service.pids.length > 0 && (
+                  <span className="font-mono text-[10px]">PID {service.pids[0]}</span>
+                )}
               </div>
             </motion.div>
-          );
-        })}
+          ))
+        )}
       </div>
     </motion.div>
   );

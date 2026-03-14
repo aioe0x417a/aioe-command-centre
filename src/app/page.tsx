@@ -6,6 +6,7 @@ import { QuickActions } from "@/components/quick-actions";
 import { ServicesGrid } from "@/components/services-grid";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
 import {
   Server,
   Ticket,
@@ -57,6 +58,20 @@ const telegramMessages = [
 ];
 
 export default function Dashboard() {
+  // Real data for status cards
+  const { data: services } = useApi<{ name: string; running: boolean }[]>("/api/v1/services", { refreshInterval: 15000 });
+  const { data: ticketsData } = useApi<{ tasks: { id: string; status: string; priority: string }[] }>("/api/v1/tasks/tickets", { refreshInterval: 60000 });
+  const { data: jobs } = useApi<{ id: string; enabled: boolean }[]>("/api/v1/jobs", { refreshInterval: 60000 });
+
+  const svcOnline = services?.filter((s) => s.running).length ?? 6;
+  const svcTotal = services?.length ?? 8;
+  const svcOffline = svcTotal - svcOnline;
+  const tickets = ticketsData?.tasks || [];
+  const openTickets = tickets.filter((t) => t.status.toLowerCase() !== "closed" && t.status.toLowerCase() !== "cancelled").length;
+  const highPriority = tickets.filter((t) => t.priority === "high" || t.priority === "urgent").length;
+  const activeJobs = jobs?.filter((j) => j.enabled).length ?? 14;
+  const totalJobs = jobs?.length ?? 14;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -77,25 +92,25 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatusCard
           title="Services Online"
-          value="6/8"
-          subtitle="1 degraded · 1 offline"
+          value={`${svcOnline}/${svcTotal}`}
+          subtitle={svcOffline > 0 ? `${svcOffline} offline` : "All systems go"}
           icon={Server}
           accent="cyan"
         />
         <StatusCard
           title="Open Tickets"
-          value={12}
-          subtitle="3 high priority"
+          value={openTickets}
+          subtitle={`${highPriority} high priority`}
           icon={Ticket}
-          trend={{ value: "2 today", positive: false }}
+          trend={highPriority > 0 ? { value: `${highPriority} urgent`, positive: false } : undefined}
           accent="warning"
         />
         <StatusCard
           title="Automations"
-          value={14}
-          subtitle="Running on schedule"
+          value={`${activeJobs}/${totalJobs}`}
+          subtitle="Scheduled jobs"
           icon={Zap}
-          trend={{ value: "100%", positive: true }}
+          trend={{ value: `${activeJobs} active`, positive: true }}
           accent="purple"
         />
         <StatusCard

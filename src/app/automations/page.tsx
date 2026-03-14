@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
+import { toast } from "@/lib/use-toast";
+import { ListSkeleton } from "@/components/skeleton";
 import {
   Zap,
   Play,
@@ -11,88 +14,77 @@ import {
   CheckCircle,
   XCircle,
   RotateCcw,
-  ChevronRight,
   Calendar,
-  ArrowRight,
   Activity,
-  Filter,
 } from "lucide-react";
 
-type Tab = "workflows" | "schedules" | "history";
+type Tab = "workflows" | "schedules";
 
-interface Workflow {
+interface Job {
   id: string;
   name: string;
-  description: string;
-  status: "active" | "paused" | "error";
-  lastRun: string;
-  nextRun: string;
-  successRate: string;
-  runsToday: number;
-  source: string;
-}
-
-const workflows: Workflow[] = [
-  { id: "wf-1", name: "Invoice Pipeline", description: "Gmail → PDF extract → Drive → ClickUp", status: "active", lastRun: "30 min ago", nextRun: "In 30 min", successRate: "99.2%", runsToday: 8, source: "invoice_ingestion.py" },
-  { id: "wf-2", name: "KM Gmail Sync", description: "Labeled emails → NotebookLM notebooks", status: "active", lastRun: "1 hour ago", nextRun: "In 1 hour", successRate: "100%", runsToday: 12, source: "km_gmail_sync.py" },
-  { id: "wf-3", name: "KM Drive Sync", description: "Modified Drive files → NotebookLM", status: "active", lastRun: "2 hours ago", nextRun: "In 1 hour", successRate: "98.5%", runsToday: 6, source: "km_drive_sync.py" },
-  { id: "wf-4", name: "IT Board Pack", description: "Monthly IT report generation for leadership", status: "active", lastRun: "5 days ago", nextRun: "1 Apr 2026", successRate: "100%", runsToday: 0, source: "km_boardpack.py" },
-  { id: "wf-5", name: "Daily Briefing", description: "Morning summary → Telegram", status: "active", lastRun: "Today 08:00", nextRun: "Tomorrow 08:00", successRate: "97.8%", runsToday: 1, source: "n8n" },
-  { id: "wf-6", name: "ClickUp Sync", description: "Bidirectional task sync with AIOE", status: "active", lastRun: "15 min ago", nextRun: "In 15 min", successRate: "99.7%", runsToday: 42, source: "n8n" },
-  { id: "wf-7", name: "Masswera Bot Relay", description: "Restricted IT ops scope + shadow forwarding", status: "active", lastRun: "45 min ago", nextRun: "On trigger", successRate: "100%", runsToday: 5, source: "masswera_bot.py" },
-  { id: "wf-8", name: "Backup Verification", description: "Weekly backup integrity check", status: "paused", lastRun: "1 week ago", nextRun: "Paused", successRate: "100%", runsToday: 0, source: "n8n" },
-];
-
-interface ScheduleJob {
-  name: string;
-  cron: string;
-  nextRun: string;
+  schedule: string;
+  timezone: string;
+  message: string;
   enabled: boolean;
+  last_run: string | null;
+  last_status: string | null;
+  created_at: string;
 }
 
-const scheduleJobs: ScheduleJob[] = [
-  { name: "Invoice Pipeline", cron: "*/30 * * * *", nextRun: "15:30 SGT", enabled: true },
-  { name: "KM Gmail Sync", cron: "0 * * * *", nextRun: "16:00 SGT", enabled: true },
-  { name: "KM Drive Sync", cron: "30 * * * *", nextRun: "15:30 SGT", enabled: true },
-  { name: "Daily Briefing", cron: "0 8 * * *", nextRun: "08:00 SGT tomorrow", enabled: true },
-  { name: "Board Pack", cron: "0 9 1 * *", nextRun: "01 Apr 2026 09:00", enabled: true },
-  { name: "ClickUp Sync", cron: "*/15 * * * *", nextRun: "15:15 SGT", enabled: true },
-  { name: "Backup Verification", cron: "0 2 * * 0", nextRun: "Paused", enabled: false },
-  { name: "Health Check", cron: "*/5 * * * *", nextRun: "15:05 SGT", enabled: true },
-];
-
-interface ExecutionLog {
-  workflow: string;
-  status: "success" | "failed" | "running";
-  startedAt: string;
-  duration: string;
-  trigger: string;
+function formatDate(iso: string | null) {
+  if (!iso) return "Never";
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now.getTime() - d.getTime();
+  if (diff < 60000) return "Just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return d.toLocaleDateString("en-SG", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
-const executionHistory: ExecutionLog[] = [
-  { workflow: "ClickUp Sync", status: "success", startedAt: "15:00:01", duration: "2.3s", trigger: "Schedule" },
-  { workflow: "Invoice Pipeline", status: "success", startedAt: "14:30:00", duration: "12.4s", trigger: "Schedule" },
-  { workflow: "KM Gmail Sync", status: "success", startedAt: "14:00:00", duration: "8.1s", trigger: "Schedule" },
-  { workflow: "ClickUp Sync", status: "success", startedAt: "14:45:01", duration: "1.9s", trigger: "Schedule" },
-  { workflow: "Daily Briefing", status: "success", startedAt: "08:00:00", duration: "34.2s", trigger: "Schedule" },
-  { workflow: "Masswera Bot Relay", status: "success", startedAt: "13:22:15", duration: "4.7s", trigger: "Webhook" },
-  { workflow: "KM Drive Sync", status: "failed", startedAt: "12:30:00", duration: "45.0s", trigger: "Schedule" },
-  { workflow: "ClickUp Sync", status: "success", startedAt: "12:15:01", duration: "2.1s", trigger: "Schedule" },
-];
-
-const statusConfig = {
-  active: { color: "text-success", bg: "bg-success/10", label: "Active" },
-  paused: { color: "text-warning", bg: "bg-warning/10", label: "Paused" },
-  error: { color: "text-danger", bg: "bg-danger/10", label: "Error" },
-};
+function describeCron(cron: string): string {
+  const parts = cron.split(" ");
+  if (parts.length !== 5) return cron;
+  const [min, hour, dom, mon, dow] = parts;
+  if (min.startsWith("*/")) return `Every ${min.slice(2)} minutes`;
+  if (hour.startsWith("*/")) return `Every ${hour.slice(2)} hours`;
+  if (dom === "*" && mon === "*" && dow === "*") return `Daily at ${hour}:${min.padStart(2, "0")}`;
+  if (dow !== "*") {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    return `${days[+dow] || dow} at ${hour}:${min.padStart(2, "0")}`;
+  }
+  return cron;
+}
 
 export default function AutomationsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("workflows");
+  const { data: jobs, loading, refresh } = useApi<Job[]>("/api/v1/jobs", { refreshInterval: 30000 });
+
+  const displayJobs = jobs || [];
+  const activeCount = displayJobs.filter((j) => j.enabled).length;
+
+  const toggleJob = async (job: Job) => {
+    try {
+      const res = await fetch(`/api/proxy?path=${encodeURIComponent(`/api/v1/jobs/${job.id}/toggle`)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !job.enabled }),
+      });
+      if (res.ok) {
+        toast(`${job.name} ${job.enabled ? "paused" : "enabled"}`, job.enabled ? "warning" : "success");
+        refresh();
+      } else {
+        toast("Failed to toggle job", "error");
+      }
+    } catch {
+      toast("API error", "error");
+    }
+  };
 
   const tabs = [
     { id: "workflows" as Tab, label: "Workflows", icon: Zap },
-    { id: "schedules" as Tab, label: "Schedules", icon: Calendar },
-    { id: "history" as Tab, label: "Execution History", icon: Activity },
+    { id: "schedules" as Tab, label: "Schedule View", icon: Calendar },
   ];
 
   return (
@@ -100,16 +92,16 @@ export default function AutomationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold">Automations</h1>
-          <p className="text-sm text-muted">Workflows, schedules, and execution history</p>
+          <p className="text-sm text-muted">Scheduled jobs managed by AIOE</p>
         </div>
         <div className="flex items-center gap-3 text-sm">
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
             <div className="h-2 w-2 rounded-full bg-success animate-pulse" />
-            <span className="text-muted">{workflows.filter((w) => w.status === "active").length} active</span>
+            <span className="text-muted">{activeCount} active</span>
           </div>
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
             <Zap className="h-3.5 w-3.5 text-purple" />
-            <span className="text-muted">{workflows.reduce((sum, w) => sum + w.runsToday, 0)} runs today</span>
+            <span className="text-muted">{displayJobs.length} total</span>
           </div>
         </div>
       </div>
@@ -131,65 +123,66 @@ export default function AutomationsPage() {
         ))}
       </div>
 
-      {activeTab === "workflows" && (
+      {loading ? (
+        <ListSkeleton rows={6} />
+      ) : activeTab === "workflows" ? (
         <div className="space-y-3">
-          {workflows.map((wf, i) => {
-            const config = statusConfig[wf.status];
-            return (
-              <motion.div
-                key={wf.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: i * 0.04 }}
-                className="rounded-xl border border-border bg-surface px-5 py-4 transition-all hover:border-cyan/20"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={cn("rounded-lg p-2", config.bg)}>
-                      <Zap className={cn("h-4 w-4", config.color)} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-semibold">{wf.name}</h3>
-                        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", config.bg, config.color)}>
-                          {config.label}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted">{wf.description}</p>
-                    </div>
+          {displayJobs.map((job, i) => (
+            <motion.div
+              key={job.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: i * 0.04 }}
+              className="rounded-xl border border-border bg-surface px-5 py-4 transition-all hover:border-cyan/20"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={cn("rounded-lg p-2", job.enabled ? "bg-success/10" : "bg-surface-hover")}>
+                    <Zap className={cn("h-4 w-4", job.enabled ? "text-success" : "text-muted")} />
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="hidden text-right text-xs text-muted sm:block">
-                      <p>Last: {wf.lastRun}</p>
-                      <p>Next: {wf.nextRun}</p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm font-semibold">{job.name}</h3>
+                      <span className={cn(
+                        "rounded-full px-2 py-0.5 text-[10px] font-medium",
+                        job.enabled ? "bg-success/10 text-success" : "bg-surface-hover text-muted"
+                      )}>
+                        {job.enabled ? "Active" : "Paused"}
+                      </span>
                     </div>
-                    <div className="hidden text-right text-xs sm:block">
-                      <p className="text-success">{wf.successRate}</p>
-                      <p className="text-muted">{wf.runsToday} today</p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      {wf.status === "active" ? (
-                        <button className="rounded-lg p-2 text-muted transition-colors hover:bg-warning/10 hover:text-warning">
-                          <Pause className="h-3.5 w-3.5" />
-                        </button>
-                      ) : (
-                        <button className="rounded-lg p-2 text-muted transition-colors hover:bg-success/10 hover:text-success">
-                          <Play className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                      <button className="rounded-lg p-2 text-muted transition-colors hover:bg-surface-hover hover:text-foreground">
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
+                    <p className="mt-0.5 text-xs text-muted line-clamp-1">{job.message}</p>
                   </div>
                 </div>
-              </motion.div>
-            );
-          })}
+                <div className="flex items-center gap-6">
+                  <div className="hidden text-right text-xs text-muted sm:block">
+                    <p>{describeCron(job.schedule)}</p>
+                    <p>Last: {formatDate(job.last_run)}</p>
+                  </div>
+                  {job.last_status && (
+                    <div className="hidden sm:block">
+                      {job.last_status === "ok" ? (
+                        <CheckCircle className="h-4 w-4 text-success" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-danger" />
+                      )}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => toggleJob(job)}
+                    className={cn(
+                      "rounded-lg p-2 transition-colors",
+                      job.enabled ? "text-muted hover:bg-warning/10 hover:text-warning" : "text-muted hover:bg-success/10 hover:text-success"
+                    )}
+                  >
+                    {job.enabled ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
-      )}
-
-      {activeTab === "schedules" && (
+      ) : (
+        /* Schedule table view */
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border border-border bg-surface">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -197,71 +190,38 @@ export default function AutomationsPage() {
                 <tr className="border-b border-border text-xs text-muted">
                   <th className="px-5 py-3 text-left font-medium">Job</th>
                   <th className="px-5 py-3 text-left font-medium">Cron</th>
-                  <th className="px-5 py-3 text-left font-medium">Next Run</th>
-                  <th className="px-5 py-3 text-right font-medium">Status</th>
+                  <th className="px-5 py-3 text-left font-medium">Schedule</th>
+                  <th className="px-5 py-3 text-left font-medium">Last Run</th>
+                  <th className="px-5 py-3 text-left font-medium">Status</th>
+                  <th className="px-5 py-3 text-right font-medium">Enabled</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {scheduleJobs.map((job) => (
-                  <tr key={job.name} className="transition-colors hover:bg-surface-hover">
+                {displayJobs.map((job) => (
+                  <tr key={job.id} className="transition-colors hover:bg-surface-hover">
                     <td className="px-5 py-3 font-medium">{job.name}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted">{job.cron}</td>
-                    <td className="px-5 py-3 text-xs text-muted">{job.nextRun}</td>
+                    <td className="px-5 py-3 font-mono text-xs text-muted">{job.schedule}</td>
+                    <td className="px-5 py-3 text-xs text-muted">{describeCron(job.schedule)}</td>
+                    <td className="px-5 py-3 text-xs text-muted">{formatDate(job.last_run)}</td>
+                    <td className="px-5 py-3">
+                      {job.last_status === "ok" ? (
+                        <span className="text-xs text-success">OK</span>
+                      ) : job.last_status ? (
+                        <span className="text-xs text-danger">{job.last_status}</span>
+                      ) : (
+                        <span className="text-xs text-muted">—</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-right">
                       <button
+                        onClick={() => toggleJob(job)}
                         className={cn(
                           "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
                           job.enabled ? "bg-cyan" : "bg-border"
                         )}
                       >
-                        <span
-                          className={cn(
-                            "inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform",
-                            job.enabled ? "translate-x-4" : "translate-x-1"
-                          )}
-                        />
+                        <span className={cn("inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform", job.enabled ? "translate-x-4" : "translate-x-1")} />
                       </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
-      )}
-
-      {activeTab === "history" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="rounded-xl border border-border bg-surface">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border text-xs text-muted">
-                  <th className="px-5 py-3 text-left font-medium">Workflow</th>
-                  <th className="px-5 py-3 text-left font-medium">Status</th>
-                  <th className="px-5 py-3 text-left font-medium">Started</th>
-                  <th className="px-5 py-3 text-left font-medium">Duration</th>
-                  <th className="px-5 py-3 text-left font-medium">Trigger</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {executionHistory.map((exec, i) => (
-                  <tr key={i} className="transition-colors hover:bg-surface-hover">
-                    <td className="px-5 py-3 font-medium">{exec.workflow}</td>
-                    <td className="px-5 py-3">
-                      <span className={cn(
-                        "flex items-center gap-1.5 text-xs font-medium",
-                        exec.status === "success" ? "text-success" : exec.status === "failed" ? "text-danger" : "text-warning"
-                      )}>
-                        {exec.status === "success" ? <CheckCircle className="h-3 w-3" /> :
-                          exec.status === "failed" ? <XCircle className="h-3 w-3" /> :
-                            <RotateCcw className="h-3 w-3 animate-spin" />}
-                        {exec.status}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted">{exec.startedAt}</td>
-                    <td className="px-5 py-3 font-mono text-xs text-muted">{exec.duration}</td>
-                    <td className="px-5 py-3">
-                      <span className="rounded bg-surface-hover px-1.5 py-0.5 text-[10px] text-muted">{exec.trigger}</span>
                     </td>
                   </tr>
                 ))}

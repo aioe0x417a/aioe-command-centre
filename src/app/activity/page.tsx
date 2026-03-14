@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
+import { useApi } from "@/lib/use-api";
+import { ListSkeleton } from "@/components/skeleton";
 import {
   ScrollText,
   Search,
@@ -77,7 +79,39 @@ export default function ActivityPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<LogType | "all">("all");
 
-  const filtered = mockLog.filter((entry) => {
+  // Fetch real bot logs
+  const { data: logData, loading } = useApi<{ source: string; lines: string[] }>(
+    "/api/v1/system/logs?source=bot&lines=200",
+    { refreshInterval: 15000 }
+  );
+
+  // Convert real log lines to activity entries
+  const realEntries: LogEntry[] = (logData?.lines || [])
+    .filter((line) => line.trim().length > 0)
+    .map((line, i) => {
+      const timeMatch = line.match(/(\d{2}:\d{2}:\d{2})/);
+      const isError = /error|fail|exception/i.test(line);
+      const isWarning = /warn|⚠|retry|timeout|rate.limit/i.test(line);
+      const isChat = /message from|response sent|telegram|forwarding/i.test(line);
+      const isAutomation = /workflow|pipeline|sync|schedule|cron|heartbeat|invoice/i.test(line);
+      const isSecurity = /security|audit|login|mfa|password/i.test(line);
+      const isTask = /task|clickup|ticket/i.test(line);
+      const type: LogType = isError ? "system" : isSecurity ? "security" : isChat ? "chat" : isAutomation ? "automation" : isTask ? "task" : isWarning ? "system" : "tool";
+      const status = isError ? "error" as const : isWarning ? "warning" as const : "success" as const;
+      return {
+        id: `real-${i}`,
+        timestamp: timeMatch?.[1] || "",
+        type,
+        action: line.replace(/^\d{4}-\d{2}-\d{2}\s+/, "").replace(/\d{2}:\d{2}:\d{2}[,.\d]*\s*/, "").replace(/\[.*?\]\s*/, "").slice(0, 80),
+        detail: line,
+        status,
+      };
+    })
+    .reverse(); // newest first
+
+  const displayLog = realEntries.length > 0 ? realEntries : mockLog;
+
+  const filtered = displayLog.filter((entry) => {
     const matchesSearch =
       entry.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
       entry.detail.toLowerCase().includes(searchQuery.toLowerCase());
@@ -124,11 +158,11 @@ export default function ActivityPage() {
 
       {/* Stats bar */}
       <div className="flex items-center gap-6 rounded-xl border border-border bg-surface px-5 py-3 text-xs">
-        <span className="text-muted">Today:</span>
-        <span className="text-success">{mockLog.filter((e) => e.status === "success").length} successful</span>
-        <span className="text-warning">{mockLog.filter((e) => e.status === "warning").length} warnings</span>
-        <span className="text-danger">{mockLog.filter((e) => e.status === "error").length} errors</span>
-        <span className="ml-auto text-muted">{mockLog.length} total entries</span>
+        <span className="text-muted">Log:</span>
+        <span className="text-success">{displayLog.filter((e) => e.status === "success").length} successful</span>
+        <span className="text-warning">{displayLog.filter((e) => e.status === "warning").length} warnings</span>
+        <span className="text-danger">{displayLog.filter((e) => e.status === "error").length} errors</span>
+        <span className="ml-auto text-muted">{displayLog.length} entries {realEntries.length > 0 ? "(live)" : "(mock)"}</span>
       </div>
 
       {/* Log entries */}
