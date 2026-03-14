@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { useThemeStore, themes } from "@/lib/use-theme";
+import { useAuth } from "@/lib/use-auth";
 import { toast } from "@/lib/use-toast";
 import {
   Settings,
@@ -13,6 +14,7 @@ import {
   Globe,
   Database,
   Shield,
+  LogOut,
   User,
   Save,
   CheckCircle,
@@ -53,6 +55,7 @@ export default function SettingsPage() {
   const [saved, setSaved] = useState(false);
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const { themeId, setTheme } = useThemeStore();
+  const { logout } = useAuth();
 
   const handleSave = () => {
     setSaved(true);
@@ -67,6 +70,14 @@ export default function SettingsPage() {
           <h1 className="text-xl font-bold">Settings</h1>
           <p className="text-sm text-muted">Configure AIOE Command Centre</p>
         </div>
+        <div className="flex items-center gap-2">
+        <button
+          onClick={logout}
+          className="flex items-center gap-2 rounded-lg border border-danger/30 px-4 py-2 text-sm font-medium text-danger transition-colors hover:bg-danger/10"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+          Logout
+        </button>
         <button
           onClick={handleSave}
           className={cn(
@@ -86,6 +97,7 @@ export default function SettingsPage() {
             </>
           )}
         </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
