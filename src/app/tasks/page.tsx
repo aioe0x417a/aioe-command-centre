@@ -33,7 +33,7 @@ type Column = "backlog" | "in_progress" | "done";
 const columns: { id: Column; label: string; color: string; matchStatuses: string[] }[] = [
   { id: "backlog", label: "Queued / To Do", color: "text-cyan", matchStatuses: ["to do", "open", "backlog", "planned", "important", "important - not urgent", "urgent - not important", "urgent - not important ", "low priority"] },
   { id: "in_progress", label: "In Progress", color: "text-purple", matchStatuses: ["in progress", "working", "active", "review"] },
-  { id: "done", label: "Done", color: "text-success", matchStatuses: ["done", "complete", "closed", "resolved", "cancelled"] },
+  { id: "done", label: "Done", color: "text-success", matchStatuses: ["done"] },
 ];
 
 function getColumn(status: string): Column {
@@ -72,15 +72,10 @@ export default function TasksPage() {
   const [newTitle, setNewTitle] = useState("");
   const [addingTask, setAddingTask] = useState(false);
 
-  const now = Date.now();
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-
-  // Filter out done tasks older than 24h
+  // Hide completed/closed/cancelled tasks — ClickUp automation moves done → complete after 24h
+  const hiddenStatuses = ["complete", "closed", "cancelled", "resolved"];
   const tasks = (taskData?.tasks || []).filter((t) => {
-    if (getColumn(t.status) !== "done") return true;
-    const doneAt = t.date_done ? Number(t.date_done) : t.date_updated ? Number(t.date_updated) : 0;
-    if (!doneAt) return true; // keep if no timestamp
-    return now - doneAt < ONE_DAY;
+    return !hiddenStatuses.includes(t.status.toLowerCase().trim());
   });
 
   const addTask = async () => {
