@@ -7,7 +7,7 @@ import { Zap, Lock, Eye, EyeOff } from "lucide-react";
 
 export function LoginScreen() {
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(false);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
@@ -15,10 +15,11 @@ export function LoginScreen() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError(false);
-    const ok = await login(password);
-    if (!ok) {
-      setError(true);
+    setError("");
+    try {
+      await login(password);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Authentication failed");
       setPassword("");
     }
     setLoading(false);
@@ -55,7 +56,7 @@ export function LoginScreen() {
               <input
                 type={showPassword ? "text" : "password"}
                 value={password}
-                onChange={(e) => { setPassword(e.target.value); setError(false); }}
+                onChange={(e) => { setPassword(e.target.value); setError(""); }}
                 placeholder="Password"
                 autoFocus
                 className="w-full rounded-lg border border-border bg-background px-4 py-3 pr-10 text-sm outline-none transition-colors focus:border-cyan/30 placeholder:text-muted"
@@ -75,7 +76,7 @@ export function LoginScreen() {
                 animate={{ opacity: 1 }}
                 className="text-xs text-danger"
               >
-                Wrong password. Try again.
+                {error}
               </motion.p>
             )}
 

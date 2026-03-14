@@ -24,9 +24,10 @@ export const useAuth = create<AuthStore>()(
             set({ authenticated: true });
             return true;
           }
-          return false;
-        } catch {
-          return false;
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Authentication failed");
+        } catch (e) {
+          throw e;
         }
       },
       logout: () => set({ authenticated: false }),
