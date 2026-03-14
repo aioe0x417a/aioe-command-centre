@@ -19,7 +19,8 @@ export const useAuth = create<AuthStore>()(
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ password, totp }),
         });
-        const data = await res.json().catch(() => ({}));
+        const text = await res.text();
+        const data = text ? JSON.parse(text) : {};
 
         if (res.ok && data.ok) {
           set({ authenticated: true });

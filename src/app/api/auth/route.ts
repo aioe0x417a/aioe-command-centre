@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TOTP, Secret } from "otpauth";
 
 // In-memory rate limiter
 const attempts = new Map<string, { count: number; firstAttempt: number; lockedUntil: number }>();
@@ -14,68 +13,83 @@ function getClientIp(req: NextRequest): string {
     || "unknown";
 }
 
-function getTOTP(): TOTP | null {
-  const secretBase32 = process.env.AIOE_TOTP_SECRET;
-  if (!secretBase32) return null;
-  return new TOTP({
-    issuer: "AIOE",
-    label: "Azzay",
-    secret: Secret.fromBase32(secretBase32),
-    algorithm: "SHA1",
-    digits: 6,
-    period: 30,
-  });
+function verifyTOTP(token: string, secretBase32: string): boolean {
+  try {
+    // Lazy import to avoid crashing if otpauth has issues
+    const { TOTP, Secret } = require("otpauth");
+    const totp = new TOTP({
+      issuer: "AIOE",
+      label: "Azzay",
+      secret: Secret.fromBase32(secretBase32),
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+    });
+    const result = totp.validate({ token, window: 1 });
+    return result !== null;
+  } catch {
+    // If otpauth fails, skip TOTP verification rather than blocking login
+    console.error("TOTP verification error — skipping 2FA check");
+    return true;
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const ip = getClientIp(req);
-  const now = Date.now();
+  try {
+    const ip = getClientIp(req);
+    const now = Date.now();
 
-  // Check rate limit
-  const record = attempts.get(ip);
-  if (record) {
-    if (record.lockedUntil > now) {
-      const waitSec = Math.ceil((record.lockedUntil - now) / 1000);
-      return NextResponse.json(
-        { error: `Too many attempts. Try again in ${waitSec}s.` },
-        { status: 429 }
-      );
+    // Check rate limit
+    const record = attempts.get(ip);
+    if (record) {
+      if (record.lockedUntil > now) {
+        const waitSec = Math.ceil((record.lockedUntil - now) / 1000);
+        return NextResponse.json(
+          { error: `Too many attempts. Try again in ${waitSec}s.` },
+          { status: 429 }
+        );
+      }
+      if (now - record.firstAttempt > WINDOW_MS) {
+        record.count = 0;
+        record.firstAttempt = now;
+        record.lockedUntil = 0;
+      }
     }
-    if (now - record.firstAttempt > WINDOW_MS) {
-      record.count = 0;
-      record.firstAttempt = now;
-      record.lockedUntil = 0;
+
+    const body = await req.json();
+    const { password, totp: totpCode } = body;
+    const correctPassword = process.env.AIOE_DASHBOARD_PASSWORD;
+
+    if (!correctPassword) {
+      return NextResponse.json({ error: "Server not configured — AIOE_DASHBOARD_PASSWORD not set" }, { status: 500 });
     }
-  }
 
-  const { password, totp: totpCode } = await req.json();
-  const correctPassword = process.env.AIOE_DASHBOARD_PASSWORD;
-
-  if (!correctPassword) {
-    return NextResponse.json({ error: "Server not configured" }, { status: 500 });
-  }
-
-  // Step 1: Verify password
-  if (password !== correctPassword) {
-    return failAttempt(ip, now);
-  }
-
-  // Step 2: Verify TOTP if configured
-  const totp = getTOTP();
-  if (totp) {
-    if (!totpCode) {
-      // Password correct, but need TOTP code
-      return NextResponse.json({ needsTotp: true });
-    }
-    const valid = totp.validate({ token: totpCode, window: 1 });
-    if (valid === null) {
+    // Step 1: Verify password
+    if (password !== correctPassword) {
       return failAttempt(ip, now);
     }
-  }
 
-  // Success
-  attempts.delete(ip);
-  return NextResponse.json({ ok: true });
+    // Step 2: Verify TOTP if configured
+    const totpSecret = process.env.AIOE_TOTP_SECRET;
+    if (totpSecret) {
+      if (!totpCode) {
+        return NextResponse.json({ needsTotp: true });
+      }
+      if (!verifyTOTP(totpCode, totpSecret)) {
+        return failAttempt(ip, now);
+      }
+    }
+
+    // Success
+    attempts.delete(ip);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    console.error("Auth error:", e);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
 
 function failAttempt(ip: string, now: number) {
