@@ -57,8 +57,6 @@ export default function SettingsPage() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const { themeId, setTheme } = useThemeStore();
   const { logout } = useAuth();
-  const [qrData, setQrData] = useState<{ qrDataUrl: string; secret: string; configured: boolean } | null>(null);
-  const [loading2FA, setLoading2FA] = useState(false);
 
   const handleSave = () => {
     setSaved(true);
@@ -415,81 +413,10 @@ export default function SettingsPage() {
                   Adds a second layer of security using Google Authenticator or any TOTP app.
                 </p>
 
-                {!qrData ? (
-                  <button
-                    onClick={async () => {
-                      setLoading2FA(true);
-                      try {
-                        const pwd = prompt("Enter your dashboard password to view 2FA setup:");
-                        if (!pwd) { setLoading2FA(false); return; }
-                        const res = await fetch("/api/auth/setup-2fa", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ password: pwd }),
-                        });
-                        if (res.ok) {
-                          const data = await res.json();
-                          setQrData(data);
-                        } else {
-                          toast("Wrong password", "error");
-                        }
-                      } catch {
-                        toast("Failed to load 2FA setup", "error");
-                      }
-                      setLoading2FA(false);
-                    }}
-                    disabled={loading2FA}
-                    className="mt-4 flex items-center gap-2 rounded-lg bg-cyan px-4 py-2 text-sm font-medium text-background transition-colors hover:bg-cyan/80 disabled:opacity-50"
-                  >
-                    <Shield className="h-3.5 w-3.5" />
-                    {loading2FA ? "Loading..." : "Setup 2FA"}
-                  </button>
-                ) : (
-                  <div className="mt-4 space-y-4">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="h-4 w-4 text-success" />
-                      <span className="text-sm text-success">
-                        {qrData.configured ? "2FA is active" : "Scan the QR code to activate 2FA"}
-                      </span>
-                    </div>
-
-                    {/* QR Code */}
-                    <div className="flex justify-center rounded-lg border border-border bg-background p-4">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={qrData.qrDataUrl} alt="2FA QR Code" className="h-48 w-48" />
-                    </div>
-
-                    {/* Manual key */}
-                    <div className="rounded-lg border border-border bg-background p-4">
-                      <p className="text-[10px] font-medium tracking-wider text-muted uppercase mb-2">
-                        Manual entry key (if you can&apos;t scan)
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <code className="flex-1 rounded bg-surface px-3 py-2 font-mono text-sm text-cyan tracking-wider select-all">
-                          {qrData.secret}
-                        </code>
-                        <button
-                          onClick={() => {
-                            navigator.clipboard.writeText(qrData.secret);
-                            toast("Copied to clipboard", "success");
-                          }}
-                          className="rounded-lg border border-border px-3 py-2 text-xs text-muted transition-colors hover:text-foreground"
-                        >
-                          Copy
-                        </button>
-                      </div>
-                      <p className="mt-2 text-[10px] text-muted">
-                        Type: TOTP · Algorithm: SHA1 · Digits: 6 · Period: 30s
-                      </p>
-                    </div>
-
-                    <div className="rounded-lg border border-warning/20 bg-warning/5 p-3">
-                      <p className="text-xs text-warning">
-                        Save this key somewhere safe. If you lose access to your authenticator app, you&apos;ll need this key to recover access.
-                      </p>
-                    </div>
-                  </div>
-                )}
+                <div className="mt-4 flex items-center gap-2">
+                  <CheckCircle className="h-4 w-4 text-success" />
+                  <span className="text-sm text-success">2FA is active — secured with Google Authenticator</span>
+                </div>
               </div>
 
               <div className="rounded-xl border border-border bg-surface p-6">
@@ -514,12 +441,7 @@ export default function SettingsPage() {
                       <p className="text-sm font-medium">Two-Factor Authentication</p>
                       <p className="mt-0.5 text-xs text-muted">TOTP via Google Authenticator</p>
                     </div>
-                    <span className={cn(
-                      "rounded-full px-2 py-0.5 text-[10px] font-medium",
-                      qrData?.configured ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
-                    )}>
-                      {qrData?.configured ? "Active" : "Setup required"}
-                    </span>
+                    <span className="rounded-full bg-success/10 px-2 py-0.5 text-[10px] font-medium text-success">Active</span>
                   </div>
                 </div>
               </div>
