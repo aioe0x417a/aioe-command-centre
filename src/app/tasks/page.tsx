@@ -22,6 +22,8 @@ interface ClickUpTask {
   status: string;
   priority: string | null;
   due_date: string | null;
+  date_done: string | null;
+  date_updated: string | null;
   assignees: string[];
   url: string;
 }
@@ -70,7 +72,16 @@ export default function TasksPage() {
   const [newTitle, setNewTitle] = useState("");
   const [addingTask, setAddingTask] = useState(false);
 
-  const tasks = taskData?.tasks || [];
+  const now = Date.now();
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+
+  // Filter out done tasks older than 24h
+  const tasks = (taskData?.tasks || []).filter((t) => {
+    if (getColumn(t.status) !== "done") return true;
+    const doneAt = t.date_done ? Number(t.date_done) : t.date_updated ? Number(t.date_updated) : 0;
+    if (!doneAt) return true; // keep if no timestamp
+    return now - doneAt < ONE_DAY;
+  });
 
   const addTask = async () => {
     if (!newTitle.trim()) return;
