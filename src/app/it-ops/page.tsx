@@ -60,8 +60,6 @@ export default function ITOpsPage() {
   const { data: workload, loading: wlLoading, refresh: refreshWl } = useApi<WorkloadData>("/api/v1/workload/team", { refreshInterval: 60000 });
   const { data: tickets, loading: tkLoading } = useApi<TicketsData>("/api/v1/tasks/tickets", { refreshInterval: 30000 });
   const { data: daily, loading: dlLoading } = useApi<DailyData>("/api/v1/tasks/today", { refreshInterval: 30000 });
-  const { data: services } = useApi<ServiceData[]>("/api/v1/services", { refreshInterval: 15000 });
-  const { data: jobs } = useApi<JobData[]>("/api/v1/jobs", { refreshInterval: 60000 });
 
   const wl = workload?.workload || [];
   const statuses = workload?.by_status || [];
@@ -69,9 +67,6 @@ export default function ITOpsPage() {
   const tix = tickets?.tasks || [];
   const dailyTasks = daily?.tasks || [];
   const openTickets = tix.filter((t) => t.status.toLowerCase() !== "cancelled" && t.status.toLowerCase() !== "closed");
-  const svcOnline = services?.filter((s) => s.running).length ?? 0;
-  const svcTotal = services?.length ?? 0;
-  const activeJobs = jobs?.filter((j) => j.enabled).length ?? 0;
   const maxWorkload = Math.max(...wl.map((m) => m.count), 1);
 
   // Priority breakdown from daily tasks
@@ -111,8 +106,8 @@ export default function ITOpsPage() {
           {[
             { label: "Total Tasks", value: totalTasks, icon: Layers, color: "text-cyan", bg: "bg-cyan/10" },
             { label: "Open Tickets", value: openTickets.length, icon: Ticket, color: "text-warning", bg: "bg-warning/10" },
-            { label: "Services", value: `${svcOnline}/${svcTotal}`, icon: Server, color: "text-success", bg: "bg-success/10" },
-            { label: "Active Jobs", value: activeJobs, icon: Zap, color: "text-purple", bg: "bg-purple/10" },
+            { label: "Overdue", value: dailyTasks.filter((t) => t.due_date && new Date(Number(t.due_date)) < new Date() && !["done", "complete", "closed", "cancelled"].includes(t.status.toLowerCase())).length, icon: Clock, color: "text-danger", bg: "bg-danger/10" },
+            { label: "Done This Week", value: statuses.filter((s) => ["done", "complete"].includes(s.status.toLowerCase())).reduce((sum, s) => sum + s.count, 0), icon: CheckCircle, color: "text-success", bg: "bg-success/10" },
             { label: "Unassigned", value: wl.find((m) => m.name === "Unassigned")?.count || 0, icon: AlertTriangle, color: "text-danger", bg: "bg-danger/10" },
           ].map((kpi, i) => (
             <motion.div
