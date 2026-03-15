@@ -59,6 +59,7 @@ export function CommandPalette({ open, onClose }: Props) {
     { id: "services", label: "Services", icon: Server, category: "navigation", action: () => navigate("/services") },
     { id: "monitoring", label: "Monitoring", icon: Activity, category: "navigation", action: () => navigate("/monitoring") },
     { id: "it-ops", label: "IT Operations", icon: Users, category: "navigation", action: () => navigate("/it-ops") },
+    { id: "access-identity", label: "Access & Identity", icon: Users, category: "navigation", action: () => navigate("/access-identity") },
     { id: "security", label: "Security", icon: Shield, category: "navigation", action: () => navigate("/security") },
     { id: "automations", label: "Automations", icon: Zap, category: "navigation", action: () => navigate("/automations") },
     { id: "settings", label: "Settings", icon: Settings, category: "navigation", action: () => navigate("/settings") },
