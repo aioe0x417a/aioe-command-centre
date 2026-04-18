@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { LoginScreen } from "./login-screen";
+import { useAuth } from "@/lib/use-auth";
 import {
   Zap,
   Activity,
@@ -23,6 +24,7 @@ import {
  */
 export function MarketingLanding() {
   const [showLogin, setShowLogin] = useState(false);
+  const enterDemo = useAuth((s) => s.enterDemo);
 
   if (showLogin) {
     return (
@@ -117,6 +119,12 @@ export function MarketingLanding() {
               Start 7-day free trial
               <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </button>
+            <button
+              onClick={enterDemo}
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-card/40 px-5 py-3 text-sm font-medium text-foreground/90 transition hover:border-cyan/40 hover:bg-card/60"
+            >
+              Try live demo →
+            </button>
             <a
               href="#features"
               className="text-sm text-muted-foreground underline-offset-4 transition hover:text-foreground hover:underline"
@@ -125,7 +133,7 @@ export function MarketingLanding() {
             </a>
           </motion.div>
           <div className="mt-6 text-xs text-muted-foreground">
-            No credit card required. Cancel anytime.
+            No credit card required. Cancel anytime. Demo uses simulated data.
           </div>
         </div>
       </section>
