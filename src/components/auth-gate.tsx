@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/use-auth";
-import { LoginScreen } from "./login-screen";
+import { MarketingLanding } from "./marketing-landing";
 import { useEffect, useState } from "react";
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -22,7 +22,9 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   }
 
   if (!authenticated) {
-    return <LoginScreen />;
+    // Public visitors see the marketing landing. It has an inline "Sign in"
+    // button that swaps in the existing LoginScreen without a route change.
+    return <MarketingLanding />;
   }
 
   return <>{children}</>;
